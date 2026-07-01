@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1008">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Cave Manager — Livreur</title>
+<style>
+:root{
+  --bg:#1a1008;
+  --bg2:#24180a;
+  --card:#2e1f0d;
+  --line:#4a3218;
+  --gold:#d4a017;
+  --gold2:#f0c040;
+  --cream:#f5ecd4;
+  --dim:#a08060;
+  --danger:#c0392b;
+  --green:#27ae60;
+  --orange:#e67e22;
+  --radius:14px;
+  --font:'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;background:var(--bg);color:var(--cream);font-family:var(--font);overflow:hidden;}
+
+/* ── LAYOUT ── */
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+#topbar{
+  background:linear-gradient(135deg,#1a1008,#2e1f0d);
+  border-bottom:1px solid var(--line);
+  padding:12px 16px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+#topbar h1{font-size:17px;font-weight:700;color:var(--gold2);letter-spacing:.5px;}
+#topbar .sub{font-size:11px;color:var(--dim);}
+#content{flex:1;overflow-y:auto;padding:14px 14px 80px;}
+#navbar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--card);border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(4,1fr);
+  height:62px;z-index:100;
+}
+.nav-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;border:none;background:none;color:var(--dim);
+  font-size:10px;font-weight:600;cursor:pointer;transition:color .15s;
+  padding:0;
+}
+.nav-btn.active{color:var(--gold2);}
+.nav-btn .icon{font-size:22px;line-height:1;}
+
+/* ── CARDS ── */
+.card{
+  background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:14px;margin-bottom:12px;
+}
+.card-title{font-size:13px;font-weight:700;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.card-title .badge{background:var(--gold);color:#1a1008;border-radius:20px;padding:1px 8px;font-size:11px;}
+
+/* ── TOURNÉE ── */
+.stop-item{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 0;border-bottom:1px solid var(--line);
+}
+.stop-item:last-child{border-bottom:none;}
+.stop-num{
+  width:32px;height:32px;border-radius:50%;
+  background:var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--gold);flex-shrink:0;
+}
+.stop-num.done{background:var(--green);color:#fff;}
+.stop-info{flex:1;}
+.stop-client{font-size:14px;font-weight:600;color:var(--cream);}
+.stop-detail{font-size:11.5px;color:var(--dim);margin-top:2px;}
+.stop-action{flex-shrink:0;}
+
+/* ── BOUTONS ── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;
+  border:none;cursor:pointer;transition:opacity .15s;width:100%;
+}
+.btn:active{opacity:.7;}
+.btn-primary{background:var(--gold);color:#1a1008;}
+.btn-ghost{background:var(--line);color:var(--cream);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-green{background:var(--green);color:#fff;}
+.btn-sm{padding:7px 14px;font-size:12px;width:auto;}
+
+/* ── FORMULAIRES ── */
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;color:var(--dim);margin-bottom:5px;font-weight:600;}
+.field input,.field select,.field textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--line);
+  color:var(--cream);border-radius:8px;padding:10px 12px;font-size:14px;
+  appearance:none;-webkit-appearance:none;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--gold);}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* ── PRODUIT GRID ── */
+.prod-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.prod-card{
+  background:var(--bg2);border:2px solid var(--line);
+  border-radius:10px;padding:10px;cursor:pointer;transition:border-color .15s;
+  position:relative;
+}
+.prod-card.selected{border-color:var(--gold);background:rgba(212,160,23,.1);}
+.prod-card.rupture{opacity:.4;pointer-events:none;}
+.prod-name{font-size:12.5px;font-weight:700;color:var(--cream);margin-bottom:3px;}
+.prod-prix{font-size:13px;color:var(--gold);font-weight:700;}
+.prod-stock{font-size:11px;color:var(--dim);}
+.prod-qty-badge{
+  position:absolute;top:6px;right:6px;
+  background:var(--gold);color:#1a1008;
+  border-radius:20px;padding:1px 8px;font-size:12px;font-weight:700;
+}
+
+/* ── PANIER ── */
+.panier-line{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 0;border-bottom:1px solid var(--line);
+}
+.panier-line:last-child{border-bottom:none;}
+.panier-nom{flex:1;font-size:13px;}
+.panier-ctrl{display:flex;align-items:center;gap:6px;}
+.qty-btn{
+  width:28px;height:28px;border-radius:50%;border:none;
+  background:var(--line);color:var(--cream);font-size:16px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.qty-val{font-size:14px;font-weight:700;min-width:22px;text-align:center;}
+.panier-montant{font-size:13px;color:var(--gold);font-weight:700;min-width:70px;text-align:right;}
+
+/* ── TOTAUX ── */
+.total-line{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;
+}
+.total-line:last-child{border-bottom:none;}
+.total-label{color:var(--dim);}
+.total-val{font-weight:700;color:var(--cream);}
+.total-line.big .total-label{font-size:15px;font-weight:700;color:var(--cream);}
+.total-line.big .total-val{font-size:17px;color:var(--gold2);}
+
+/* ── HISTORIQUE ── */
+.hist-item{
+  padding:12px 14px;border-radius:10px;background:var(--bg2);
+  border-left:3px solid var(--gold);margin-bottom:8px;
+}
+.hist-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.hist-num{font-size:12px;color:var(--dim);}
+.hist-montant{font-size:14px;font-weight:700;color:var(--gold);}
+.hist-client{font-size:13px;font-weight:600;color:var(--cream);}
+.hist-meta{font-size:11.5px;color:var(--dim);margin-top:2px;}
+
+/* ── TAGS ── */
+.tag{border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;display:inline-block;}
+.tag-green{background:rgba(39,174,96,.2);color:#2ecc71;}
+.tag-orange{background:rgba(230,126,34,.2);color:#e67e22;}
+.tag-red{background:rgba(192,57,43,.2);color:#e74c3c;}
+.tag-gold{background:rgba(212,160,23,.2);color:var(--gold2);}
+
+/* ── MODAL ── */
+#modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  display:none;align-items:flex-end;justify-content:center;
+}
+#modal-overlay.open{display:flex;}
+#modal-box{
+  background:var(--card);border-radius:20px 20px 0 0;
+  width:100%;max-height:92vh;overflow-y:auto;
+  padding:20px 16px 32px;
+  border-top:1px solid var(--line);
+}
+.modal-handle{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 16px;}
+.modal-title{font-size:17px;font-weight:700;color:var(--gold);margin-bottom:16px;}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%);
+  background:rgba(40,25,10,.95);border:1px solid var(--gold);
+  color:var(--cream);padding:10px 20px;border-radius:30px;
+  font-size:13px;font-weight:600;z-index:300;
+  opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap;
+}
+#toast.show{opacity:1;}
+
+/* ── VIDE ── */
+.empty{text-align:center;padding:40px 20px;color:var(--dim);}
+.empty .icon{font-size:48px;margin-bottom:12px;}
+.empty p{font-size:14px;}
+
+/* ── AFFINITE / CONSIG BANNER ── */
+.banner{
+  border-radius:10px;padding:10px 12px;
+  font-size:12px;font-weight:600;
+  display:flex;align-items:center;gap:8px;margin-bottom:10px;
+}
+.banner-gold{background:rgba(212,160,23,.15);border:1px solid rgba(212,160,23,.4);color:var(--gold2);}
+.banner-red{background:rgba(192,57,43,.15);border:1px solid rgba(192,57,43,.4);color:#e74c3c;}
+.banner-green{background:rgba(39,174,96,.15);border:1px solid rgba(39,174,96,.4);color:#2ecc71;}
+
+/* ── SCROLL TOUCH FIX ── */
+#content{-webkit-overflow-scrolling:touch;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="topbar">
+    <div>
+      <h1>🍺 Cave Manager</h1>
+      <div class="sub" id="topbar-sub">Espace Livreur</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:12px;color:var(--gold);" id="topbar-date"></div>
+      <div style="font-size:11px;color:var(--dim);" id="topbar-livreur"></div>
+    </div>
+  </div>
+
+  <div id="content"></div>
+
+  <nav id="navbar">
+    <button class="nav-btn active" id="nav-tournee" onclick="showView('tournee')">
+      <span class="icon">🗺️</span>Tournée
+    </button>
+    <button class="nav-btn" id="nav-vente" onclick="showView('vente')">
+      <span class="icon">🧾</span>Vente
+    </button>
+    <button class="nav-btn" id="nav-historique" onclick="showView('historique')">
+      <span class="icon">📋</span>Historique
+    </button>
+    <button class="nav-btn" id="nav-profil" onclick="showView('profil')">
+      <span class="icon">👤</span>Profil
+    </button>
+  </nav>
+</div>
+
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div id="modal-box">
+    <div class="modal-handle"></div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// BASE DE DONNÉES
+// ═══════════════════════════════════════════════════
+const DB_NAME = 'cavelivreur_db';
+const DB_VERSION = 1;
+const STORES = ['livreur','produits','clients','tournees','ventes','config'];
+let db = null;
+let CACHE = {livreur:null, produits:[], clients:[], tournees:[], ventes:[]};
+let CONFIG = {nom_depot:'Cave Manager', telephone:'', adresse:''};
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function fmt(n){return Math.round(n||0).toLocaleString('fr-FR');}
+function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function todayFR(){const d=new Date();return d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});}
+
+async function openDB(){
+  return new Promise((res,rej)=>{
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e=>{
+      const d = e.target.result;
+      STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:'id'}); });
+    };
+    req.onsuccess = e=>{ db=e.target.result; res(db); };
+    req.onerror = ()=>rej(req.error);
+  });
+}
+function dbGet(store,id){return new Promise((res,rej)=>{ const tx=db.transaction(store,'readonly'); const req=tx.objectStore(store).get(id); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); });}
+function dbGetAll(store){return new Promise((res,rej)=>{ const tx=db.transaction(store,'readonly'); const req=tx.objectStore(store).getAll(); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); });}
+function dbPut(store,obj){return new Promise((res,rej)=>{ const tx=db.transaction(store,'readwrite'); const req=tx.objectStore(store).put(obj); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); });}
+function dbDelete(store,id){return new Promise((res,rej)=>{ const tx=db.transaction(store,'readwrite'); const req=tx.objectStore(store).delete(id); req.onsuccess=()=>res(); req.onerror=()=>rej(req.error); });}
+
+async function reloadCache(){
+  const [livreurs, produits, clients, tournees, ventes, configs] = await Promise.all(
+    STORES.map(s=>dbGetAll(s))
+  );
+  CACHE.livreur = livreurs[0]||null;
+  CACHE.produits = produits;
+  CACHE.clients = clients;
+  CACHE.tournees = tournees;
+  CACHE.ventes = ventes;
+  if(configs.length) Object.assign(CONFIG, configs[0]);
+}
+
+// ═══════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════
+let currentView = 'tournee';
+
+function showView(v){
+  currentView = v;
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const nb = document.getElementById('nav-'+v);
+  if(nb) nb.classList.add('active');
+  const content = document.getElementById('content');
+  if(v==='tournee') renderTournee();
+  else if(v==='vente') renderVente();
+  else if(v==='historique') renderHistorique();
+  else if(v==='profil') renderProfil();
+}
+
+function toast(msg, dur=2800){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), dur);
+}
+
+// ═══════════════════════════════════════════════════
+// TOPBAR
+// ═══════════════════════════════════════════════════
+function updateTopbar(){
+  document.getElementById('topbar-date').textContent = todayFR();
+  const l = CACHE.livreur;
+  document.getElementById('topbar-livreur').textContent = l ? '👤 '+l.nom : 'Non connecté';
+}
+
+// ═══════════════════════════════════════════════════
+// VUE TOURNÉE
+// ═══════════════════════════════════════════════════
+function renderTournee(){
+  const content = document.getElementById('content');
+  // Tournée du jour
+  const today = todayISO();
+  const tourneeJour = CACHE.tournees.find(t=>t.date===today && t.livreur_id===(CACHE.livreur?.id||'')) || null;
+  const stops = tourneeJour ? tourneeJour.stops : [];
+  const ventesDuJour = CACHE.ventes.filter(v=>v.date===today);
+  const totalJour = ventesDuJour.reduce((s,v)=>s+v.total,0);
+
+  let stopsHTML = '';
+  if(stops.length){
+    stopsHTML = stops.map((s,i)=>{
+      const done = CACHE.ventes.some(v=>v.stop_id===s.id && v.date===today);
+      return `<div class="stop-item">
+        <div class="stop-num ${done?'stop-num done'}">${done?'✓':i+1}</div>
+        <div class="stop-info">
+          <div class="stop-client">${s.client}</div>
+          <div class="stop-detail">${s.adresse||''} ${s.produits||''}</div>
+        </div>
+        <div class="stop-action">
+          ${done
+            ? '<span class="tag tag-green">Livré</span>'
+            : `<button class="btn btn-primary btn-sm" onclick="startVenteForStop('${s.id}','${encodeURIComponent(s.client)}')">Vendre</button>`}
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    stopsHTML = `<div class="empty"><div class="icon">🗺️</div><p>Aucun arrêt pour aujourd'hui.<br>Ajoutez des arrêts ci-dessous.</p></div>`;
+  }
+
+  content.innerHTML = `
+    <!-- Résumé du jour -->
+    <div class="card" style="border-color:var(--gold);background:linear-gradient(135deg,var(--card),rgba(212,160,23,.05));">
+      <div class="card-title">📊 Aujourd'hui</div>
+      <div class="row-2" style="gap:8px;">
+        <div style="text-align:center;background:var(--bg2);border-radius:10px;padding:12px;">
+          <div style="font-size:24px;font-weight:700;color:var(--gold2);">${ventesDuJour.length}</div>
+          <div style="font-size:11px;color:var(--dim);">Ventes</div>
+        </div>
+        <div style="text-align:center;background:var(--bg2);border-radius:10px;padding:12px;">
+          <div style="font-size:18px;font-weight:700;color:var(--gold2);">${fmt(totalJour)}</div>
+          <div style="font-size:11px;color:var(--dim);">F CFA encaissé</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrêts de la tournée -->
+    <div class="card">
+      <div class="card-title">
+        🚐 Tournée du jour
+        <span class="badge">${stops.length} arrêts</span>
+      </div>
+      ${stopsHTML}
+      <div style="margin-top:12px;">
+        <button class="btn btn-ghost" onclick="openAddStop()">+ Ajouter un arrêt</button>
+      </div>
+    </div>
+
+    <!-- Actions rapides -->
+    <div class="card">
+      <div class="card-title">⚡ Actions rapides</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <button class="btn btn-primary" onclick="showView('vente')">🧾 Nouvelle vente</button>
+        <button class="btn btn-ghost" onclick="openExportModal()">📤 Exporter journée</button>
+      </div>
+    </div>
+  `;
+}
+
+function openAddStop(){
+  const clientsOpts = CACHE.clients.map(c=>`<option value="${c.nom}">${c.nom}</option>`).join('');
+  openModal(`
+    <div class="modal-title">+ Nouvel arrêt</div>
+    <div class="field">
+      <label>Client</label>
+      <select id="stop-client">
+        <option value="">— Choisir —</option>${clientsOpts}
+      </select>
+      <input id="stop-client-libre" placeholder="Ou saisir librement…" style="margin-top:6px;width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:10px 12px;font-size:14px;">
+    </div>
+    <div class="field"><label>Adresse / Zone</label><input id="stop-adresse" placeholder="Ex: Secteur 12, marché de…"></div>
+    <div class="field"><label>Produits prévus (optionnel)</label><input id="stop-produits" placeholder="Ex: 3 Benbere, 2 Flag…"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveStop()">Ajouter</button>
+    </div>
+  `);
+}
+
+async function saveStop(){
+  const sel = document.getElementById('stop-client').value;
+  const libre = document.getElementById('stop-client-libre').value.trim();
+  const client = libre || sel;
+  if(!client){ toast('⚠ Indiquez le client'); return; }
+  const today = todayISO();
+  let tournee = CACHE.tournees.find(t=>t.date===today && t.livreur_id===(CACHE.livreur?.id||''));
+  if(!tournee){
+    tournee = {id:uid(), date:today, livreur_id:CACHE.livreur?.id||'', stops:[]};
+  }
+  tournee.stops.push({
+    id: uid(),
+    client,
+    adresse: document.getElementById('stop-adresse').value.trim(),
+    produits: document.getElementById('stop-produits').value.trim(),
+  });
+  await dbPut('tournees', tournee);
+  await reloadCache();
+  closeModal();
+  renderTournee();
+  toast('✅ Arrêt ajouté');
+}
+
+function startVenteForStop(stopId, clientEnc){
+  const clientNom = decodeURIComponent(clientEnc);
+  showView('vente');
+  setTimeout(()=>prefillClient(clientNom), 100);
+}
+
+// ═══════════════════════════════════════════════════
+// VUE VENTE
+// ═══════════════════════════════════════════════════
+let panier = []; // [{prod, qte}]
+let venteClient = '';
+let venteAffinite = false;
+
+function prefillClient(nom){
+  venteClient = nom;
+  const el = document.getElementById('v-client');
+  if(el) el.value = nom;
+}
+
+function renderVente(){
+  const content = document.getElementById('content');
+  const produits = CACHE.produits.filter(p=>p.actif!==false);
+  const clientsOpts = CACHE.clients.map(c=>`<option value="${c.nom}">${c.nom}</option>`).join('');
+
+  const panierHTML = panier.length ? panier.map((item,i)=>{
+    const montant = item.qte * item.prod.prix_vente;
+    return `<div class="panier-line">
+      <div class="panier-nom">${item.prod.nom}<br><span style="font-size:11px;color:var(--dim);">${fmt(item.prod.prix_vente)} F / u</span></div>
+      <div class="panier-ctrl">
+        <button class="qty-btn" onclick="changeQte(${i},-1)">−</button>
+        <span class="qty-val">${item.qte}</span>
+        <button class="qty-btn" onclick="changeQte(${i},+1)">+</button>
+      </div>
+      <div class="panier-montant">${fmt(montant)} F</div>
+    </div>`;
+  }).join('') : `<div style="padding:12px 0;color:var(--dim);font-size:13px;text-align:center;">Aucun article</div>`;
+
+  const total = panier.reduce((s,it)=>s+it.qte*it.prod.prix_vente,0);
+
+  // Calcul emballages & consignation
+  let emb12Achetes = 0, emb24Achetes = 0;
+  panier.forEach(it=>{
+    if(it.prod.capacite==='24') emb24Achetes += it.qte;
+    else emb12Achetes += it.qte;
+  });
+  const totalEmb = emb12Achetes + emb24Achetes;
+
+  content.innerHTML = `
+    <!-- Client -->
+    <div class="card">
+      <div class="card-title">👤 Client</div>
+      <div class="field" style="margin-bottom:6px;">
+        <select id="v-client-sel" onchange="onClientSelChange()" style="width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:10px 12px;font-size:14px;">
+          <option value="">— Sélectionner un client —</option>${clientsOpts}
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <input id="v-client" placeholder="Ou saisir un nouveau client…" value="${venteClient}"
+          style="width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:10px 12px;font-size:14px;"
+          oninput="venteClient=this.value">
+      </div>
+    </div>
+
+    <!-- Produits -->
+    <div class="card">
+      <div class="card-title">🍺 Produits</div>
+      ${produits.length ? `
+      <div class="prod-grid">
+        ${produits.map(p=>{
+          const inPanier = panier.find(it=>it.prod.id===p.id);
+          return `<div class="prod-card ${inPanier?'selected':''} ${p.quantite<=0?'rupture':''}" onclick="toggleProduit('${p.id}')">
+            ${inPanier?`<div class="prod-qty-badge">×${inPanier.qte}</div>`:''}
+            <div class="prod-name">${p.nom}</div>
+            <div class="prod-prix">${fmt(p.prix_vente)} F</div>
+            <div class="prod-stock">Stock: ${p.quantite}</div>
+          </div>`;
+        }).join('')}
+      </div>` : `<div class="empty"><p>Aucun produit configuré.<br>Allez dans Profil → Configurer.</p></div>`}
+    </div>
+
+    <!-- Panier -->
+    <div class="card">
+      <div class="card-title">🛒 Panier</div>
+      ${panierHTML}
+    </div>
+
+    <!-- Emballages & Consignation -->
+    ${totalEmb > 0 ? `
+    <div class="card" id="bloc-emb">
+      <div class="card-title">📦 Emballages ramenés</div>
+      <div class="banner banner-gold">⚠ ${emb12Achetes>0?emb12Achetes+' Emb12 ':''}${emb24Achetes>0?emb24Achetes+' Emb24 ':(emb12Achetes>0?'':'')}à récupérer</div>
+      <div class="row-2">
+        <div class="field">
+          <label>Emb 12 ramenées</label>
+          <input type="number" id="emb12-ramenees" value="0" min="0" max="${emb12Achetes}" oninput="recalcConsig()">
+        </div>
+        <div class="field">
+          <label>Emb 24 ramenées</label>
+          <input type="number" id="emb24-ramenees" value="0" min="0" max="${emb24Achetes}" oninput="recalcConsig()">
+        </div>
+      </div>
+      <div id="banner-consig"></div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:6px;cursor:pointer;">
+        <input type="checkbox" id="v-affinite" onchange="onAffiniteToggle()" style="width:16px;height:16px;">
+        <span style="font-size:13px;color:var(--gold);font-weight:600;">🤝 Client Affinité — sans consignation</span>
+      </label>
+    </div>` : ''}
+
+    <!-- Totaux & Règlement -->
+    <div class="card">
+      <div class="card-title">💰 Règlement</div>
+      <div class="total-line">
+        <span class="total-label">Montant Boisson</span>
+        <span class="total-val" id="v-total">${fmt(total)} F</span>
+      </div>
+      <div class="total-line" id="consig-line" style="display:none;">
+        <span class="total-label">Consignation</span>
+        <span class="total-val" id="v-consig" style="color:var(--orange);">0 F</span>
+      </div>
+      <div class="total-line big">
+        <span class="total-label">Total Facture</span>
+        <span class="total-val" id="v-facture">${fmt(total)} F</span>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Espèce reçue</label>
+        <input type="number" id="v-espece" placeholder="0" oninput="recalcMonnaie()" style="font-size:18px;font-weight:700;color:var(--gold2);">
+      </div>
+      <div class="total-line">
+        <span class="total-label">Monnaie à rendre</span>
+        <span class="total-val" id="v-monnaie" style="color:var(--green);">—</span>
+      </div>
+      <div style="height:10px;"></div>
+      <button class="btn btn-primary" style="font-size:15px;padding:13px;" onclick="validerVente()">✅ Valider la vente</button>
+    </div>
+  `;
+
+  // Restaurer client si sélection
+  const selEl = document.getElementById('v-client-sel');
+  if(selEl && venteClient){
+    for(let opt of selEl.options){ if(opt.value===venteClient){ opt.selected=true; break; } }
+  }
+  recalcConsig();
+}
+
+function onClientSelChange(){
+  const sel = document.getElementById('v-client-sel');
+  if(sel && sel.value){
+    venteClient = sel.value;
+    const el = document.getElementById('v-client');
+    if(el) el.value = sel.value;
+  }
+}
+
+function toggleProduit(id){
+  const prod = CACHE.produits.find(p=>p.id===id);
+  if(!prod) return;
+  const idx = panier.findIndex(it=>it.prod.id===id);
+  if(idx>=0) panier.splice(idx,1);
+  else panier.push({prod, qte:1});
+  renderVente();
+}
+
+function changeQte(i, delta){
+  panier[i].qte = Math.max(1, panier[i].qte + delta);
+  renderVente();
+}
+
+function recalcConsig(){
+  const affinite = (document.getElementById('v-affinite')||{checked:false}).checked;
+  let emb12Achetes=0, emb24Achetes=0;
+  panier.forEach(it=>{ if(it.prod.capacite==='24') emb24Achetes+=it.qte; else emb12Achetes+=it.qte; });
+
+  const ramenees12 = parseInt((document.getElementById('emb12-ramenees')||{value:0}).value)||0;
+  const ramenees24 = parseInt((document.getElementById('emb24-ramenees')||{value:0}).value)||0;
+  const manq12 = affinite ? 0 : Math.max(0, emb12Achetes - ramenees12);
+  const manq24 = affinite ? 0 : Math.max(0, emb24Achetes - ramenees24);
+  const consig = (manq12 + manq24) * 5000;
+  const total = panier.reduce((s,it)=>s+it.qte*it.prod.prix_vente,0);
+  const facture = total + consig;
+
+  const elV = document.getElementById('v-total');
+  const elC = document.getElementById('v-consig');
+  const elF = document.getElementById('v-facture');
+  const elCL = document.getElementById('consig-line');
+  const elBanner = document.getElementById('banner-consig');
+
+  if(elV) elV.textContent = fmt(total)+' F';
+  if(elC){ elC.textContent = fmt(consig)+' F'; }
+  if(elCL) elCL.style.display = consig>0 ? '' : 'none';
+  if(elF) elF.textContent = fmt(facture)+' F';
+
+  if(elBanner){
+    if(affinite){
+      elBanner.innerHTML = `<div class="banner banner-green">🤝 Aucune consignation — client Affinité</div>`;
+    } else if(manq12+manq24>0){
+      elBanner.innerHTML = `<div class="banner banner-red">⚠ ${manq12+manq24} caisse(s) manquante(s) → +${fmt(consig)} F de consignation</div>`;
+    } else if(emb12Achetes+emb24Achetes>0){
+      elBanner.innerHTML = `<div class="banner banner-green">✅ Toutes les caisses ramenées</div>`;
+    } else {
+      elBanner.innerHTML = '';
+    }
+  }
+  recalcMonnaie();
+}
+
+function onAffiniteToggle(){
+  venteAffinite = (document.getElementById('v-affinite')||{checked:false}).checked;
+  recalcConsig();
+}
+
+function recalcMonnaie(){
+  const espece = parseFloat((document.getElementById('v-espece')||{value:0}).value)||0;
+  const facture = parseFloat(((document.getElementById('v-facture')||{textContent:'0'}).textContent||'0').replace(/\s/g,'').replace(',','.'))||0;
+  const monnaie = espece - facture;
+  const el = document.getElementById('v-monnaie');
+  if(!el) return;
+  if(espece===0){ el.textContent='—'; el.style.color='var(--dim)'; return; }
+  if(monnaie<0){ el.textContent=fmt(Math.abs(monnaie))+' F manquant'; el.style.color='var(--danger)'; }
+  else { el.textContent=fmt(monnaie)+' F'; el.style.color='var(--green)'; }
+}
+
+async function validerVente(){
+  if(!panier.length){ toast('⚠ Aucun article dans le panier'); return; }
+  const clientNom = (document.getElementById('v-client')||{value:''}).value.trim() || venteClient;
+  if(!clientNom){ toast('⚠ Indiquez le client'); return; }
+
+  const affinite = (document.getElementById('v-affinite')||{checked:false}).checked;
+  let emb12Achetes=0, emb24Achetes=0;
+  panier.forEach(it=>{ if(it.prod.capacite==='24') emb24Achetes+=it.qte; else emb12Achetes+=it.qte; });
+  const ramenees12 = affinite ? 0 : parseInt((document.getElementById('emb12-ramenees')||{value:0}).value)||0;
+  const ramenees24 = affinite ? 0 : parseInt((document.getElementById('emb24-ramenees')||{value:0}).value)||0;
+  const manq12 = affinite ? 0 : Math.max(0, emb12Achetes - ramenees12);
+  const manq24 = affinite ? 0 : Math.max(0, emb24Achetes - ramenees24);
+  const consig = (manq12 + manq24) * 5000;
+  const total = panier.reduce((s,it)=>s+it.qte*it.prod.prix_vente,0);
+  const facture = total + consig;
+  const espece = parseFloat((document.getElementById('v-espece')||{value:0}).value)||0;
+
+  if(!affinite && (emb12Achetes+emb24Achetes>0)){
+    const ramenees12El = document.getElementById('emb12-ramenees');
+    const ramenees24El = document.getElementById('emb24-ramenees');
+    if(ramenees12El && ramenees12El.value==='' && emb12Achetes>0){ toast('⚠ Saisissez les Emb12 ramenées (0 si aucune)'); return; }
+    if(ramenees24El && ramenees24El.value==='' && emb24Achetes>0){ toast('⚠ Saisissez les Emb24 ramenées (0 si aucune)'); return; }
+  }
+
+  const vente = {
+    id: uid(),
+    num: await getNextNum(),
+    date: todayISO(),
+    heure: new Date().toTimeString().slice(0,5),
+    livreur_id: CACHE.livreur?.id||'',
+    livreur_nom: CACHE.livreur?.nom||'',
+    client_nom: clientNom,
+    lignes: panier.map(it=>({id:it.prod.id, nom:it.prod.nom, qte:it.qte, prix:it.prod.prix_vente, montant:it.qte*it.prod.prix_vente})),
+    total_boisson: total,
+    montant_consig: consig,
+    total: facture,
+    espece_recue: espece,
+    monnaie: Math.max(0, espece - facture),
+    emb12_achetes: emb12Achetes,
+    emb24_achetes: emb24Achetes,
+    emb12_ramenees: ramenees12,
+    emb24_ramenees: ramenees24,
+    manq12, manq24,
+    affinite,
+    synced: false,
+  };
+
+  // Mise à jour stock local
+  for(const it of panier){
+    const p = CACHE.produits.find(x=>x.id===it.prod.id);
+    if(p){ p.quantite = Math.max(0, p.quantite - it.qte); await dbPut('produits', p); }
+  }
+  await dbPut('ventes', vente);
+  await reloadCache();
+
+  // Réinitialiser panier
+  panier = [];
+  venteClient = '';
+  venteAffinite = false;
+
+  toast('✅ Vente enregistrée !');
+  openTicketModal(vente);
+}
+
+async function getNextNum(){
+  const ventes = await dbGetAll('ventes');
+  return ventes.length + 1;
+}
+
+// ═══════════════════════════════════════════════════
+// TICKET MODAL
+// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// IMPRESSION BLUETOOTH THERMIQUE (ESC/POS 58mm)
+// Compatible : Goojprt, Peripage, Munbyn, Xprinter, etc.
+// ═══════════════════════════════════════════════════
+let btDevice = null;
+let btChar   = null;
+
+// ESC/POS helpers
+const ESC = 0x1B, GS = 0x1D;
+function escpos(){
+  const buf = [];
+  const add = (...bytes) => bytes.forEach(b=>buf.push(b));
+  return {
+    init()   { add(ESC,0x40); return this; },
+    center() { add(ESC,0x61,0x01); return this; },
+    left()   { add(ESC,0x61,0x00); return this; },
+    bold(on) { add(ESC,0x45,on?1:0); return this; },
+    size(w,h){ add(GS,0x21,((w-1)<<4)|(h-1)); return this; },
+    feed(n)  { add(ESC,0x64,n||1); return this; },
+    cut()    { add(GS,0x56,0x42,0x00); return this; },
+    text(str){
+      // Encode latin + basic accents
+      for(const ch of str){
+        const c = ch.charCodeAt(0);
+        if(c<128) add(c);
+        else {
+          const map={'é':0x82,'è':0x8A,'ê':0x88,'ë':0x89,
+                     'à':0x85,'â':0x83,'ä':0x84,'ô':0x93,
+                     'ù':0x97,'û':0x96,'ç':0x87,'î':0x8C,
+                     'ï':0x8B,'ö':0x94,'ã':0x86,'õ':0x95,
+                     'á':0x81,'ú':0x98,'í':0x8D,'ó':0x92};
+          add(map[ch]||0x3F);
+        }
+      }
+      return this;
+    },
+    line(str){ return this.text(str+'
+'); },
+    dashes(n){ return this.line('-'.repeat(n||32)); },
+    row(left,right,width){
+      width = width||32;
+      const r = String(right);
+      const l = String(left).slice(0, width-r.length-1).padEnd(width-r.length);
+      return this.text(l+r+'
+');
+    },
+    bytes(){ return new Uint8Array(buf); }
+  };
+}
+
+async function connectBluetooth(){
+  try {
+    if(!navigator.bluetooth) throw new Error('Web Bluetooth non supporté sur ce navigateur');
+    btDevice = await navigator.bluetooth.requestDevice({
+      filters: [{services:['000018f0-0000-1000-8000-00805f9b34fb']}],
+      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb',
+                         '0000ff00-0000-1000-8000-00805f9b34fb',
+                         '0000ffe0-0000-1000-8000-00805f9b34fb']
+    });
+    const server  = await btDevice.gatt.connect();
+    // Essayer plusieurs UUID de services courants
+    const serviceUUIDs = [
+      '000018f0-0000-1000-8000-00805f9b34fb',
+      '0000ff00-0000-1000-8000-00805f9b34fb',
+      '0000ffe0-0000-1000-8000-00805f9b34fb',
+    ];
+    let service = null;
+    for(const uuid of serviceUUIDs){
+      try { service = await server.getPrimaryService(uuid); break; } catch(e){}
+    }
+    if(!service) throw new Error('Service d'impression non trouvé');
+    const charUUIDs = [
+      '00002af1-0000-1000-8000-00805f9b34fb',
+      '0000ff02-0000-1000-8000-00805f9b34fb',
+      '0000ffe1-0000-1000-8000-00805f9b34fb',
+    ];
+    btChar = null;
+    for(const uuid of charUUIDs){
+      try { btChar = await service.getCharacteristic(uuid); break; } catch(e){}
+    }
+    if(!btChar){
+      const chars = await service.getCharacteristics();
+      btChar = chars.find(c=>c.properties.write||c.properties.writeWithoutResponse)||chars[0];
+    }
+    if(!btChar) throw new Error('Caractéristique d'écriture non trouvée');
+    toast('🖨️ Imprimante connectée : '+btDevice.name);
+    return true;
+  } catch(e){
+    if(e.name!=='NotFoundError') toast('⚠ '+e.message);
+    btDevice = null; btChar = null;
+    return false;
+  }
+}
+
+async function sendToPrinter(bytes){
+  if(!btChar || !btDevice?.gatt?.connected){
+    const ok = await connectBluetooth();
+    if(!ok) return false;
+  }
+  // Envoyer par chunks de 512 octets (limite BLE)
+  const CHUNK = 512;
+  for(let i=0;i<bytes.length;i+=CHUNK){
+    const chunk = bytes.slice(i,i+CHUNK);
+    try {
+      if(btChar.properties.writeWithoutResponse)
+        await btChar.writeValueWithoutResponse(chunk);
+      else
+        await btChar.writeValueWithResponse(chunk);
+      await new Promise(r=>setTimeout(r,50));
+    } catch(e){
+      toast('⚠ Erreur impression: '+e.message);
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildTicketESCPOS(vente){
+  const W = 32; // largeur 58mm ≈ 32 caractères
+  const e = escpos().init();
+  // En-tête centré
+  e.center().bold(true).size(1,1).line(CONFIG.nom_depot.slice(0,W));
+  e.bold(false).size(0,0);
+  if(CONFIG.telephone) e.line(CONFIG.telephone.slice(0,W));
+  if(CONFIG.adresse)   e.line(CONFIG.adresse.slice(0,W));
+  e.dashes(W);
+  e.bold(true).line(('VENTE N'+String(vente.num).padStart(4,'0')).slice(0,W));
+  e.bold(false).line((vente.date+' '+vente.heure).slice(0,W));
+  e.dashes(W);
+  e.left().line('Client: '+vente.client_nom.slice(0,W-8));
+  e.line('Livreur: '+(vente.livreur_nom||'').slice(0,W-9));
+  e.dashes(W);
+  // Lignes produits
+  for(const l of vente.lignes){
+    const qte = 'x'+l.qte;
+    const mont = fmt(l.montant)+' F';
+    const nom = l.nom.slice(0, W-qte.length-mont.length-2);
+    e.text(nom+' '+qte);
+    e.text(' '.repeat(Math.max(1, W-nom.length-qte.length-mont.length-1))+mont+'
+');
+  }
+  if(vente.montant_consig>0){
+    e.dashes(W);
+    e.row('Consignation', fmt(vente.montant_consig)+' F', W);
+  }
+  e.dashes(W);
+  e.bold(true).size(1,1).row('TOTAL', fmt(vente.total)+' F', W-4);
+  e.size(0,0).bold(false);
+  if(vente.espece_recue>0){
+    e.dashes(W);
+    e.row('Espece recue', fmt(vente.espece_recue)+' F', W);
+    e.row('Monnaie', fmt(vente.monnaie)+' F', W);
+  }
+  if(vente.affinite) e.center().line('** Client Affinite **');
+  // Emballages
+  if(vente.emb12_achetes>0||vente.emb24_achetes>0){
+    e.dashes(W).left();
+    if(vente.emb12_achetes>0) e.row('Emb12 achetees/ramenes', vente.emb12_achetes+'/'+vente.emb12_ramenees, W);
+    if(vente.emb24_achetes>0) e.row('Emb24 achetees/ramenes', vente.emb24_achetes+'/'+vente.emb24_ramenees, W);
+  }
+  e.dashes(W).center().line('Merci et a bientot !').feed(4).cut();
+  return e.bytes();
+}
+
+function buildTicketText(vente){
+  // Texte brut pour fallback ou copie
+  const W=32;
+  const hr='-'.repeat(W);
+  const row=(l,r)=>{ const rv=String(r); return String(l).slice(0,W-rv.length-1).padEnd(W-rv.length)+rv; };
+  let t='';
+  t+=CONFIG.nom_depot.slice(0,W).padStart(Math.ceil((W+CONFIG.nom_depot.length)/2))+'
+';
+  if(CONFIG.telephone) t+=CONFIG.telephone+'
+';
+  t+=hr+'
+';
+  t+='VENTE N'+String(vente.num).padStart(4,'0')+'
+';
+  t+=vente.date+' '+vente.heure+'
+';
+  t+=hr+'
+';
+  t+='Client: '+vente.client_nom+'
+';
+  t+=hr+'
+';
+  for(const l of vente.lignes) t+=row(l.nom+' x'+l.qte, fmt(l.montant)+' F')+'
+';
+  if(vente.montant_consig>0) t+=hr+'
+'+row('Consignation',fmt(vente.montant_consig)+' F')+'
+';
+  t+=hr+'
+'+row('TOTAL',fmt(vente.total)+' F')+'
+';
+  if(vente.espece_recue>0){ t+=row('Espece recue',fmt(vente.espece_recue)+' F')+'
+'+row('Monnaie',fmt(vente.monnaie)+' F')+'
+'; }
+  t+=hr+'
+Merci et a bientot !
+
+
+';
+  return t;
+}
+
+function openTicketModal(vente){
+  const lignesHTML = vente.lignes.map(l=>
+    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ddd;font-size:13px;">
+      <span>${l.nom} ×${l.qte}</span><span style="font-weight:700;">${fmt(l.montant)} F</span>
+    </div>`
+  ).join('');
+
+  const btStatus = (btDevice&&btDevice.gatt.connected)
+    ? `<div class="banner banner-green" style="margin-bottom:10px;">🖨️ Imprimante : ${btDevice.name}</div>`
+    : `<div class="banner banner-gold" style="margin-bottom:10px;">🖨️ Imprimante non connectée</div>`;
+
+  openModal(`
+    <div class="modal-title">🧾 Reçu de vente</div>
+    ${btStatus}
+    <div id="ticket-preview" style="background:#fff;color:#111;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;max-width:260px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:8px;">
+        <div style="font-size:15px;font-weight:700;">${CONFIG.nom_depot}</div>
+        ${CONFIG.telephone?`<div style="font-size:11px;color:#555;">${CONFIG.telephone}</div>`:''}
+        ${CONFIG.adresse?`<div style="font-size:11px;color:#555;margin-bottom:4px;">${CONFIG.adresse}</div>`:''}
+        <div style="border-top:1px dashed #999;border-bottom:1px dashed #999;padding:4px 0;font-weight:700;">
+          VENTE N°${String(vente.num).padStart(4,'0')} — ${vente.date} ${vente.heure||''}
+        </div>
+      </div>
+      <div style="margin-bottom:6px;font-size:12px;">Client : <b>${vente.client_nom}</b></div>
+      <div style="margin-bottom:6px;font-size:12px;">Livreur : ${vente.livreur_nom||''}</div>
+      <div style="border-top:1px solid #ddd;margin-bottom:4px;"></div>
+      ${lignesHTML}
+      ${vente.montant_consig>0?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ddd;font-size:12px;color:#c00;"><span>Consignation</span><span>${fmt(vente.montant_consig)} F</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;border-top:2px solid #111;">
+        <span>TOTAL</span><span>${fmt(vente.total)} F</span>
+      </div>
+      ${vente.espece_recue>0?`
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span>Espèce reçue</span><span>${fmt(vente.espece_recue)} F</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span>Monnaie</span><span>${fmt(vente.monnaie)} F</span></div>`:''}
+      ${vente.affinite?`<div style="text-align:center;margin-top:6px;font-size:11px;color:#b8860b;">** Client Affinité **</div>`:''}
+      <div style="text-align:center;margin-top:10px;font-size:11px;color:#888;">Merci et à bientôt !</div>
+    </div>
+    <div style="height:12px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-ghost" onclick="imprimerBluetooth()" id="btn-bt">🖨️ Bluetooth</button>
+      <button class="btn btn-ghost" onclick="imprimerEcran()">📄 Écran/PDF</button>
+    </div>
+    <div style="height:8px;"></div>
+    <button class="btn btn-primary" onclick="closeModal();showView('tournee')">✓ Terminer</button>
+  `);
+  // Stocker vente courante pour impression
+  window._venteEnCours = vente;
+}
+
+async function imprimerBluetooth(){
+  const v = window._venteEnCours;
+  if(!v) return;
+  const btn = document.getElementById('btn-bt');
+  if(btn){ btn.textContent='Connexion…'; btn.disabled=true; }
+  try {
+    const bytes = buildTicketESCPOS(v);
+    const ok = await sendToPrinter(bytes);
+    if(ok) toast('✅ Ticket imprimé !');
+  } finally {
+    if(btn){ btn.textContent='🖨️ Bluetooth'; btn.disabled=false; }
+  }
+}
+
+function imprimerEcran(){
+  const preview = document.getElementById('ticket-preview');
+  if(!preview) return;
+  const win = window.open('','_blank','width=320,height=600');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>
+      @page{size:58mm auto;margin:3mm;}
+      body{font-family:monospace;font-size:11px;width:52mm;margin:0;padding:2mm;}
+      @media print{button{display:none;}}
+    </style></head><body>
+    ${preview.innerHTML}
+    <br><button onclick="window.print()">Imprimer</button>
+    </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 400);
+}
+
+// ═══════════════════════════════════════════════════
+// VUE HISTORIQUE
+// ═══════════════════════════════════════════════════
+function renderHistorique(){
+  const content = document.getElementById('content');
+  const today = todayISO();
+  const ventesDuJour = [...CACHE.ventes].filter(v=>v.date===today).reverse();
+  const toutesVentes = [...CACHE.ventes].sort((a,b)=>b.date.localeCompare(a.date)||b.num-a.num);
+
+  const totalJour = ventesDuJour.reduce((s,v)=>s+v.total,0);
+  const totalConsig = ventesDuJour.reduce((s,v)=>s+(v.montant_consig||0),0);
+
+  const historiqueHTML = toutesVentes.length ? toutesVentes.map(v=>`
+    <div class="hist-item" onclick="openVenteDetail('${v.id}')">
+      <div class="hist-header">
+        <span class="hist-num">N° ${String(v.num||0).padStart(4,'0')} — ${v.date} ${v.heure||''}</span>
+        <span class="hist-montant">${fmt(v.total)} F</span>
+      </div>
+      <div class="hist-client">${v.client_nom}</div>
+      <div class="hist-meta">
+        ${v.lignes.length} article(s)
+        ${v.montant_consig>0?` · Consig: ${fmt(v.montant_consig)} F`:''}
+        ${v.affinite?'· 🤝 Affinité':''}
+        ${!v.synced?'<span class="tag tag-orange" style="margin-left:4px;">Non synced</span>':''}
+      </div>
+    </div>
+  `).join('') : `<div class="empty"><div class="icon">📋</div><p>Aucune vente enregistrée.</p></div>`;
+
+  content.innerHTML = `
+    <div class="card" style="border-color:var(--gold);">
+      <div class="card-title">📊 Résumé du jour</div>
+      <div class="total-line">
+        <span class="total-label">Ventes (${ventesDuJour.length})</span>
+        <span class="total-val">${fmt(totalJour)} F</span>
+      </div>
+      <div class="total-line">
+        <span class="total-label">Dont consignations</span>
+        <span class="total-val" style="color:var(--orange);">${fmt(totalConsig)} F</span>
+      </div>
+      <div class="total-line big">
+        <span class="total-label">Net boissons</span>
+        <span class="total-val">${fmt(totalJour - totalConsig)} F</span>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:700;color:var(--dim);margin-bottom:8px;">Toutes les ventes</div>
+    ${historiqueHTML}
+  `;
+}
+
+function openVenteDetail(id){
+  const v = CACHE.ventes.find(x=>x.id===id);
+  if(!v) return;
+  const lignesHTML = v.lignes.map(l=>
+    `<div class="total-line"><span class="total-label">${l.nom} ×${l.qte}</span><span class="total-val">${fmt(l.montant)} F</span></div>`
+  ).join('');
+  openModal(`
+    <div class="modal-title">Vente N° ${String(v.num||0).padStart(4,'0')}</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">${v.date} ${v.heure||''} — ${v.client_nom}</div>
+    ${lignesHTML}
+    ${v.montant_consig>0?`<div class="total-line"><span class="total-label" style="color:var(--orange);">Consignation</span><span class="total-val" style="color:var(--orange);">${fmt(v.montant_consig)} F</span></div>`:''}
+    <div class="total-line big"><span class="total-label">Total</span><span class="total-val">${fmt(v.total)} F</span></div>
+    ${v.emb12_achetes>0||v.emb24_achetes>0?`
+    <div style="background:var(--bg2);border-radius:8px;padding:10px;margin-top:8px;font-size:12px;color:var(--dim);">
+      Emb12 achetées: ${v.emb12_achetes} / ramenées: ${v.emb12_ramenees||0}<br>
+      Emb24 achetées: ${v.emb24_achetes} / ramenées: ${v.emb24_ramenees||0}
+    </div>`:''}
+    ${v.affinite?`<div class="banner banner-gold" style="margin-top:8px;">🤝 Client Affinité</div>`:''}
+    <div style="height:10px;"></div>
+    <button class="btn btn-ghost" onclick="closeModal()">Fermer</button>
+  `);
+}
+
+// ═══════════════════════════════════════════════════
+// VUE PROFIL / CONFIG
+// ═══════════════════════════════════════════════════
+function renderProfil(){
+  const content = document.getElementById('content');
+  const l = CACHE.livreur;
+  content.innerHTML = `
+    <!-- Infos livreur -->
+    <div class="card">
+      <div class="card-title">👤 Mon profil</div>
+      ${l ? `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-size:22px;color:#1a1008;font-weight:700;">${l.nom[0].toUpperCase()}</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;">${l.nom}</div>
+            <div style="font-size:12px;color:var(--dim);">${l.telephone||'—'}</div>
+          </div>
+        </div>
+      ` : `<div class="banner banner-red" style="margin-bottom:12px;">⚠ Profil non configuré</div>`}
+      <button class="btn btn-ghost" onclick="openProfilModal()">✏️ ${l?'Modifier':'Configurer'} le profil</button>
+    </div>
+
+    <!-- Dépôt -->
+    <div class="card">
+      <div class="card-title">🏪 Dépôt</div>
+      <div style="font-size:13px;color:var(--cream);margin-bottom:4px;">${CONFIG.nom_depot}</div>
+      <div style="font-size:12px;color:var(--dim);">${CONFIG.telephone||'—'}</div>
+      <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">${CONFIG.adresse||'—'}</div>
+      <button class="btn btn-ghost" onclick="openDepotModal()">✏️ Configurer le dépôt</button>
+    </div>
+
+    <!-- Produits -->
+    <div class="card">
+      <div class="card-title">🍺 Produits <span class="badge">${CACHE.produits.length}</span></div>
+      <button class="btn btn-ghost" style="margin-bottom:8px;" onclick="openProduitModal()">+ Nouveau produit</button>
+      ${CACHE.produits.map(p=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+          <div>
+            <div style="font-size:13px;font-weight:600;">${p.nom}</div>
+            <div style="font-size:11px;color:var(--dim);">Stock: ${p.quantite} · ${fmt(p.prix_vente)} F</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="openProduitModal('${p.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteProduit('${p.id}')">🗑</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Clients -->
+    <div class="card">
+      <div class="card-title">👥 Clients <span class="badge">${CACHE.clients.length}</span></div>
+      <button class="btn btn-ghost" style="margin-bottom:8px;" onclick="openClientModal()">+ Nouveau client</button>
+      ${CACHE.clients.slice(0,10).map(c=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+          <div>
+            <div style="font-size:13px;font-weight:600;">${c.nom}</div>
+            <div style="font-size:11px;color:var(--dim);">${c.telephone||'—'} · ${c.adresse||'—'}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openClientModal('${c.id}')">✏️</button>
+        </div>
+      `).join('')}
+      ${CACHE.clients.length>10?`<div style="font-size:12px;color:var(--dim);margin-top:6px;">+ ${CACHE.clients.length-10} autres</div>`:''}
+    </div>
+
+    <!-- Imprimante Bluetooth -->
+    <div class="card">
+      <div class="card-title">🖨️ Imprimante Bluetooth</div>
+      <div id="bt-status-card" style="font-size:13px;color:var(--dim);margin-bottom:10px;">Non connectée</div>
+      <div style="display:grid;gap:8px;">
+        <button class="btn btn-primary" onclick="connecterImprimante()">🔗 Connecter l'imprimante</button>
+        <button class="btn btn-ghost" onclick="testerImprimante()">🧪 Imprimer un test</button>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--dim);line-height:1.6;">
+        Compatible : Goojprt, Peripage, Munbyn, Xprinter (58mm ou 80mm)<br>
+        Activez le Bluetooth et appairez l'imprimante avant de connecter.
+      </div>
+    </div>
+
+    <!-- Export/Import -->
+    <div class="card">
+      <div class="card-title">🔄 Données</div>
+      <div style="display:grid;gap:8px;">
+        <button class="btn btn-ghost" onclick="exporterDonnees()">📤 Exporter les ventes (JSON)</button>
+        <button class="btn btn-ghost" onclick="importerProduits()">📥 Importer produits depuis Cave Manager</button>
+      </div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL PROFIL
+// ═══════════════════════════════════════════════════
+function openProfilModal(){
+  const l = CACHE.livreur || {};
+  openModal(`
+    <div class="modal-title">👤 Mon profil</div>
+    <div class="field"><label>Nom complet</label><input id="p-nom" value="${l.nom||''}" placeholder="Ex: Kofi Mensah"></div>
+    <div class="field"><label>Téléphone</label><input id="p-tel" type="tel" value="${l.telephone||''}" placeholder="Ex: 70 00 00 00"></div>
+    <div class="field"><label>Code PIN (4 chiffres)</label><input id="p-pin" type="password" maxlength="4" value="${l.pin||''}" placeholder="••••"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveProfil()">Enregistrer</button>
+    </div>
+  `);
+}
+
+async function saveProfil(){
+  const nom = document.getElementById('p-nom').value.trim();
+  if(!nom){ toast('⚠ Entrez votre nom'); return; }
+  const obj = {
+    id: CACHE.livreur?.id || uid(),
+    nom,
+    telephone: document.getElementById('p-tel').value.trim(),
+    pin: document.getElementById('p-pin').value.trim(),
+  };
+  await dbPut('livreur', obj);
+  await reloadCache();
+  updateTopbar();
+  closeModal();
+  renderProfil();
+  toast('✅ Profil enregistré');
+}
+
+function openDepotModal(){
+  openModal(`
+    <div class="modal-title">🏪 Informations dépôt</div>
+    <div class="field"><label>Nom du dépôt</label><input id="d-nom" value="${CONFIG.nom_depot||''}"></div>
+    <div class="field"><label>Téléphone</label><input id="d-tel" value="${CONFIG.telephone||''}"></div>
+    <div class="field"><label>Adresse</label><input id="d-adr" value="${CONFIG.adresse||''}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveDepot()">Enregistrer</button>
+    </div>
+  `);
+}
+
+async function saveDepot(){
+  CONFIG.nom_depot = document.getElementById('d-nom').value.trim()||'Cave Manager';
+  CONFIG.telephone = document.getElementById('d-tel').value.trim();
+  CONFIG.adresse   = document.getElementById('d-adr').value.trim();
+  await dbPut('config', {...CONFIG, id:'depot'});
+  closeModal();
+  renderProfil();
+  toast('✅ Dépôt mis à jour');
+}
+
+// ═══════════════════════════════════════════════════
+// PRODUITS CRUD
+// ═══════════════════════════════════════════════════
+function openProduitModal(id){
+  const p = id ? CACHE.produits.find(x=>x.id===id) : {};
+  openModal(`
+    <div class="modal-title">${id?'Modifier':'Nouveau'} produit</div>
+    <div class="field"><label>Nom</label><input id="pr-nom" value="${p.nom||''}" placeholder="Ex: Benbere 33cl"></div>
+    <div class="row-2">
+      <div class="field"><label>Capacité</label>
+        <select id="pr-cap">
+          <option value="12" ${p.capacite==='12'?'selected':''}>Emb 12</option>
+          <option value="24" ${p.capacite==='24'?'selected':''}>Emb 24</option>
+          <option value="autre" ${p.capacite&&p.capacite!=='12'&&p.capacite!=='24'?'selected':''}>Autre</option>
+        </select>
+      </div>
+      <div class="field"><label>Catégorie</label><input id="pr-cat" value="${p.categorie||''}" placeholder="Bière, eau…"></div>
+    </div>
+    <div class="row-2">
+      <div class="field"><label>Prix de vente (F)</label><input type="number" id="pr-pv" value="${p.prix_vente||0}"></div>
+      <div class="field"><label>Quantité en stock</label><input type="number" id="pr-qte" value="${p.quantite??0}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveProduit('${id||''}')">Enregistrer</button>
+    </div>
+  `);
+}
+
+async function saveProduit(id){
+  const nom = document.getElementById('pr-nom').value.trim();
+  if(!nom){ toast('⚠ Nom requis'); return; }
+  const obj = {
+    id: id || uid(),
+    nom,
+    capacite: document.getElementById('pr-cap').value,
+    categorie: document.getElementById('pr-cat').value.trim(),
+    prix_vente: parseFloat(document.getElementById('pr-pv').value)||0,
+    quantite: parseInt(document.getElementById('pr-qte').value)||0,
+    actif: true,
+  };
+  await dbPut('produits', obj);
+  await reloadCache();
+  closeModal();
+  renderProfil();
+  toast('✅ Produit enregistré');
+}
+
+async function deleteProduit(id){
+  if(!confirm('Supprimer ce produit ?')) return;
+  await dbDelete('produits', id);
+  await reloadCache();
+  renderProfil();
+  toast('Produit supprimé');
+}
+
+// ═══════════════════════════════════════════════════
+// CLIENTS CRUD
+// ═══════════════════════════════════════════════════
+function openClientModal(id){
+  const c = id ? CACHE.clients.find(x=>x.id===id) : {};
+  openModal(`
+    <div class="modal-title">${id?'Modifier':'Nouveau'} client</div>
+    <div class="field"><label>Nom</label><input id="cl-nom" value="${c.nom||''}"></div>
+    <div class="row-2">
+      <div class="field"><label>Téléphone</label><input id="cl-tel" type="tel" value="${c.telephone||''}"></div>
+      <div class="field"><label>Zone / Adresse</label><input id="cl-adr" value="${c.adresse||''}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveClient('${id||''}')">Enregistrer</button>
+    </div>
+  `);
+}
+
+async function saveClient(id){
+  const nom = document.getElementById('cl-nom').value.trim();
+  if(!nom){ toast('⚠ Nom requis'); return; }
+  const obj = {
+    id: id || uid(),
+    nom,
+    telephone: document.getElementById('cl-tel').value.trim(),
+    adresse: document.getElementById('cl-adr').value.trim(),
+  };
+  await dbPut('clients', obj);
+  await reloadCache();
+  closeModal();
+  renderProfil();
+  toast('✅ Client enregistré');
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════
+async function connecterImprimante(){
+  const ok = await connectBluetooth();
+  const el = document.getElementById('bt-status-card');
+  if(el) el.textContent = ok ? '✅ Connectée : '+(btDevice?.name||'') : '❌ Non connectée';
+  if(ok) renderProfil();
+}
+
+async function testerImprimante(){
+  if(!btChar && !(await connectBluetooth())) return;
+  const testVente = {
+    num:9999, date: todayISO(), heure: new Date().toTimeString().slice(0,5),
+    client_nom:'TEST CLIENT', livreur_nom: CACHE.livreur?.nom||'',
+    lignes:[{nom:'Produit Test', qte:2, montant:10000}],
+    total_boisson:10000, montant_consig:0, total:10000,
+    espece_recue:10000, monnaie:0, affinite:false,
+    emb12_achetes:0, emb24_achetes:0,
+  };
+  window._venteEnCours = testVente;
+  const bytes = buildTicketESCPOS(testVente);
+  const ok = await sendToPrinter(bytes);
+  if(ok) toast('✅ Test imprimé !');
+}
+
+async function exporterDonnees(){
+  const ventes = await dbGetAll('ventes');
+  const data = {
+    export_date: new Date().toISOString(),
+    livreur: CACHE.livreur?.nom||'',
+    ventes,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ventes_livreur_${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✅ Export téléchargé');
+}
+
+function importerProduits(){
+  openModal(`
+    <div class="modal-title">📥 Importer les produits</div>
+    <p style="font-size:13px;color:var(--dim);margin-bottom:14px;">
+      Exportez d'abord les produits depuis Cave Manager (bureau) puis importez le fichier JSON ici.
+    </p>
+    <div class="field">
+      <label>Fichier JSON de produits</label>
+      <input type="file" id="import-file" accept=".json" style="color:var(--cream);">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="doImportProduits()">Importer</button>
+    </div>
+  `);
+}
+
+async function doImportProduits(){
+  const file = document.getElementById('import-file').files[0];
+  if(!file){ toast('⚠ Sélectionnez un fichier'); return; }
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const produits = data.bouteilles || data.produits || [];
+    if(!produits.length){ toast('⚠ Aucun produit trouvé dans ce fichier'); return; }
+    for(const p of produits){
+      await dbPut('produits', {
+        id: p.id||uid(), nom: p.nom, capacite: p.capacite||'12',
+        categorie: p.categorie||'', prix_vente: p.prix_vente||0,
+        quantite: p.quantite||0, actif: true,
+      });
+    }
+    // Importer aussi clients et config si disponibles
+    if(data.clients) for(const c of data.clients) await dbPut('clients',{id:c.id,nom:c.nom,telephone:c.telephone||'',adresse:c.adresse||''});
+    if(data.config) await dbPut('config',{...data.config, id:'depot'});
+    await reloadCache();
+    closeModal();
+    renderProfil();
+    toast(`✅ ${produits.length} produits importés`);
+  } catch(e){
+    toast('⚠ Fichier invalide');
+  }
+}
+
+function openExportModal(){
+  exporterDonnees();
+}
+
+// ═══════════════════════════════════════════════════
+// MODAL HELPER
+// ═══════════════════════════════════════════════════
+function openModal(html){
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+function handleOverlayClick(e){
+  if(e.target===document.getElementById('modal-overlay')) closeModal();
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+async function init(){
+  await openDB();
+  await reloadCache();
+  updateTopbar();
+  showView('tournee');
+
+  // Si premier lancement, ouvrir config profil
+  if(!CACHE.livreur){
+    setTimeout(()=>{
+      openModal(`
+        <div class="modal-title">👋 Bienvenue !</div>
+        <p style="font-size:14px;color:var(--dim);margin-bottom:16px;">Configurez d'abord votre profil pour commencer.</p>
+        <button class="btn btn-primary" onclick="closeModal();openProfilModal()">Configurer mon profil</button>
+      `);
+    }, 500);
+  }
+}
+
+init();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
