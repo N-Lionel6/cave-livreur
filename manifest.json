@@ -2,7 +2,7 @@
   "name": "Cave Manager — Livreur",
   "short_name": "CaveLivreur",
   "description": "Application livreur pour Cave Manager — fonctionne hors connexion",
-  "start_url": "./livreur.html",
+  "start_url": "/cave-livreur/livreur.html",
   "display": "standalone",
   "background_color": "#1a1008",
   "theme_color": "#1a1008",

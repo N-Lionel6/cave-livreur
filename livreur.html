@@ -737,289 +737,43 @@ async function getNextNum(){
 // ═══════════════════════════════════════════════════
 // TICKET MODAL
 // ═══════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════
-// IMPRESSION BLUETOOTH THERMIQUE (ESC/POS 58mm)
-// Compatible : Goojprt, Peripage, Munbyn, Xprinter, etc.
-// ═══════════════════════════════════════════════════
-let btDevice = null;
-let btChar   = null;
-
-// ESC/POS helpers
-const ESC = 0x1B, GS = 0x1D;
-function escpos(){
-  const buf = [];
-  const add = (...bytes) => bytes.forEach(b=>buf.push(b));
-  return {
-    init()   { add(ESC,0x40); return this; },
-    center() { add(ESC,0x61,0x01); return this; },
-    left()   { add(ESC,0x61,0x00); return this; },
-    bold(on) { add(ESC,0x45,on?1:0); return this; },
-    size(w,h){ add(GS,0x21,((w-1)<<4)|(h-1)); return this; },
-    feed(n)  { add(ESC,0x64,n||1); return this; },
-    cut()    { add(GS,0x56,0x42,0x00); return this; },
-    text(str){
-      // Encode latin + basic accents
-      for(const ch of str){
-        const c = ch.charCodeAt(0);
-        if(c<128) add(c);
-        else {
-          const map={'é':0x82,'è':0x8A,'ê':0x88,'ë':0x89,
-                     'à':0x85,'â':0x83,'ä':0x84,'ô':0x93,
-                     'ù':0x97,'û':0x96,'ç':0x87,'î':0x8C,
-                     'ï':0x8B,'ö':0x94,'ã':0x86,'õ':0x95,
-                     'á':0x81,'ú':0x98,'í':0x8D,'ó':0x92};
-          add(map[ch]||0x3F);
-        }
-      }
-      return this;
-    },
-    line(str){ return this.text(str+'
-'); },
-    dashes(n){ return this.line('-'.repeat(n||32)); },
-    row(left,right,width){
-      width = width||32;
-      const r = String(right);
-      const l = String(left).slice(0, width-r.length-1).padEnd(width-r.length);
-      return this.text(l+r+'
-');
-    },
-    bytes(){ return new Uint8Array(buf); }
-  };
-}
-
-async function connectBluetooth(){
-  try {
-    if(!navigator.bluetooth) throw new Error('Web Bluetooth non supporté sur ce navigateur');
-    btDevice = await navigator.bluetooth.requestDevice({
-      filters: [{services:['000018f0-0000-1000-8000-00805f9b34fb']}],
-      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb',
-                         '0000ff00-0000-1000-8000-00805f9b34fb',
-                         '0000ffe0-0000-1000-8000-00805f9b34fb']
-    });
-    const server  = await btDevice.gatt.connect();
-    // Essayer plusieurs UUID de services courants
-    const serviceUUIDs = [
-      '000018f0-0000-1000-8000-00805f9b34fb',
-      '0000ff00-0000-1000-8000-00805f9b34fb',
-      '0000ffe0-0000-1000-8000-00805f9b34fb',
-    ];
-    let service = null;
-    for(const uuid of serviceUUIDs){
-      try { service = await server.getPrimaryService(uuid); break; } catch(e){}
-    }
-    if(!service) throw new Error('Service d'impression non trouvé');
-    const charUUIDs = [
-      '00002af1-0000-1000-8000-00805f9b34fb',
-      '0000ff02-0000-1000-8000-00805f9b34fb',
-      '0000ffe1-0000-1000-8000-00805f9b34fb',
-    ];
-    btChar = null;
-    for(const uuid of charUUIDs){
-      try { btChar = await service.getCharacteristic(uuid); break; } catch(e){}
-    }
-    if(!btChar){
-      const chars = await service.getCharacteristics();
-      btChar = chars.find(c=>c.properties.write||c.properties.writeWithoutResponse)||chars[0];
-    }
-    if(!btChar) throw new Error('Caractéristique d'écriture non trouvée');
-    toast('🖨️ Imprimante connectée : '+btDevice.name);
-    return true;
-  } catch(e){
-    if(e.name!=='NotFoundError') toast('⚠ '+e.message);
-    btDevice = null; btChar = null;
-    return false;
-  }
-}
-
-async function sendToPrinter(bytes){
-  if(!btChar || !btDevice?.gatt?.connected){
-    const ok = await connectBluetooth();
-    if(!ok) return false;
-  }
-  // Envoyer par chunks de 512 octets (limite BLE)
-  const CHUNK = 512;
-  for(let i=0;i<bytes.length;i+=CHUNK){
-    const chunk = bytes.slice(i,i+CHUNK);
-    try {
-      if(btChar.properties.writeWithoutResponse)
-        await btChar.writeValueWithoutResponse(chunk);
-      else
-        await btChar.writeValueWithResponse(chunk);
-      await new Promise(r=>setTimeout(r,50));
-    } catch(e){
-      toast('⚠ Erreur impression: '+e.message);
-      return false;
-    }
-  }
-  return true;
-}
-
-function buildTicketESCPOS(vente){
-  const W = 32; // largeur 58mm ≈ 32 caractères
-  const e = escpos().init();
-  // En-tête centré
-  e.center().bold(true).size(1,1).line(CONFIG.nom_depot.slice(0,W));
-  e.bold(false).size(0,0);
-  if(CONFIG.telephone) e.line(CONFIG.telephone.slice(0,W));
-  if(CONFIG.adresse)   e.line(CONFIG.adresse.slice(0,W));
-  e.dashes(W);
-  e.bold(true).line(('VENTE N'+String(vente.num).padStart(4,'0')).slice(0,W));
-  e.bold(false).line((vente.date+' '+vente.heure).slice(0,W));
-  e.dashes(W);
-  e.left().line('Client: '+vente.client_nom.slice(0,W-8));
-  e.line('Livreur: '+(vente.livreur_nom||'').slice(0,W-9));
-  e.dashes(W);
-  // Lignes produits
-  for(const l of vente.lignes){
-    const qte = 'x'+l.qte;
-    const mont = fmt(l.montant)+' F';
-    const nom = l.nom.slice(0, W-qte.length-mont.length-2);
-    e.text(nom+' '+qte);
-    e.text(' '.repeat(Math.max(1, W-nom.length-qte.length-mont.length-1))+mont+'
-');
-  }
-  if(vente.montant_consig>0){
-    e.dashes(W);
-    e.row('Consignation', fmt(vente.montant_consig)+' F', W);
-  }
-  e.dashes(W);
-  e.bold(true).size(1,1).row('TOTAL', fmt(vente.total)+' F', W-4);
-  e.size(0,0).bold(false);
-  if(vente.espece_recue>0){
-    e.dashes(W);
-    e.row('Espece recue', fmt(vente.espece_recue)+' F', W);
-    e.row('Monnaie', fmt(vente.monnaie)+' F', W);
-  }
-  if(vente.affinite) e.center().line('** Client Affinite **');
-  // Emballages
-  if(vente.emb12_achetes>0||vente.emb24_achetes>0){
-    e.dashes(W).left();
-    if(vente.emb12_achetes>0) e.row('Emb12 achetees/ramenes', vente.emb12_achetes+'/'+vente.emb12_ramenees, W);
-    if(vente.emb24_achetes>0) e.row('Emb24 achetees/ramenes', vente.emb24_achetes+'/'+vente.emb24_ramenees, W);
-  }
-  e.dashes(W).center().line('Merci et a bientot !').feed(4).cut();
-  return e.bytes();
-}
-
-function buildTicketText(vente){
-  // Texte brut pour fallback ou copie
-  const W=32;
-  const hr='-'.repeat(W);
-  const row=(l,r)=>{ const rv=String(r); return String(l).slice(0,W-rv.length-1).padEnd(W-rv.length)+rv; };
-  let t='';
-  t+=CONFIG.nom_depot.slice(0,W).padStart(Math.ceil((W+CONFIG.nom_depot.length)/2))+'
-';
-  if(CONFIG.telephone) t+=CONFIG.telephone+'
-';
-  t+=hr+'
-';
-  t+='VENTE N'+String(vente.num).padStart(4,'0')+'
-';
-  t+=vente.date+' '+vente.heure+'
-';
-  t+=hr+'
-';
-  t+='Client: '+vente.client_nom+'
-';
-  t+=hr+'
-';
-  for(const l of vente.lignes) t+=row(l.nom+' x'+l.qte, fmt(l.montant)+' F')+'
-';
-  if(vente.montant_consig>0) t+=hr+'
-'+row('Consignation',fmt(vente.montant_consig)+' F')+'
-';
-  t+=hr+'
-'+row('TOTAL',fmt(vente.total)+' F')+'
-';
-  if(vente.espece_recue>0){ t+=row('Espece recue',fmt(vente.espece_recue)+' F')+'
-'+row('Monnaie',fmt(vente.monnaie)+' F')+'
-'; }
-  t+=hr+'
-Merci et a bientot !
-
-
-';
-  return t;
-}
-
 function openTicketModal(vente){
   const lignesHTML = vente.lignes.map(l=>
-    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ddd;font-size:13px;">
+    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee;font-size:13px;">
       <span>${l.nom} ×${l.qte}</span><span style="font-weight:700;">${fmt(l.montant)} F</span>
     </div>`
   ).join('');
 
-  const btStatus = (btDevice&&btDevice.gatt.connected)
-    ? `<div class="banner banner-green" style="margin-bottom:10px;">🖨️ Imprimante : ${btDevice.name}</div>`
-    : `<div class="banner banner-gold" style="margin-bottom:10px;">🖨️ Imprimante non connectée</div>`;
-
   openModal(`
     <div class="modal-title">🧾 Reçu de vente</div>
-    ${btStatus}
-    <div id="ticket-preview" style="background:#fff;color:#111;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;max-width:260px;margin:0 auto;">
-      <div style="text-align:center;margin-bottom:8px;">
+    <div style="background:#fff;color:#111;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;">
+      <div style="text-align:center;margin-bottom:10px;">
         <div style="font-size:15px;font-weight:700;">${CONFIG.nom_depot}</div>
-        ${CONFIG.telephone?`<div style="font-size:11px;color:#555;">${CONFIG.telephone}</div>`:''}
-        ${CONFIG.adresse?`<div style="font-size:11px;color:#555;margin-bottom:4px;">${CONFIG.adresse}</div>`:''}
-        <div style="border-top:1px dashed #999;border-bottom:1px dashed #999;padding:4px 0;font-weight:700;">
-          VENTE N°${String(vente.num).padStart(4,'0')} — ${vente.date} ${vente.heure||''}
+        <div style="font-size:11px;color:#555;">${CONFIG.telephone||''}</div>
+        <div style="font-size:11px;color:#555;margin-bottom:6px;">${CONFIG.adresse||''}</div>
+        <div style="border-top:1px dashed #aaa;border-bottom:1px dashed #aaa;padding:4px 0;font-size:13px;font-weight:700;">
+          VENTE N° ${String(vente.num).padStart(4,'0')} — ${vente.date} ${vente.heure}
         </div>
       </div>
-      <div style="margin-bottom:6px;font-size:12px;">Client : <b>${vente.client_nom}</b></div>
-      <div style="margin-bottom:6px;font-size:12px;">Livreur : ${vente.livreur_nom||''}</div>
-      <div style="border-top:1px solid #ddd;margin-bottom:4px;"></div>
+      <div style="margin-bottom:8px;font-size:13px;">Client : <b>${vente.client_nom}</b></div>
       ${lignesHTML}
-      ${vente.montant_consig>0?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ddd;font-size:12px;color:#c00;"><span>Consignation</span><span>${fmt(vente.montant_consig)} F</span></div>`:''}
-      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;border-top:2px solid #111;">
+      ${vente.montant_consig>0 ? `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee;font-size:13px;color:#c00;"><span>Consignation</span><span>${fmt(vente.montant_consig)} F</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:700;">
         <span>TOTAL</span><span>${fmt(vente.total)} F</span>
       </div>
-      ${vente.espece_recue>0?`
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span>Espèce reçue</span><span>${fmt(vente.espece_recue)} F</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span>Monnaie</span><span>${fmt(vente.monnaie)} F</span></div>`:''}
-      ${vente.affinite?`<div style="text-align:center;margin-top:6px;font-size:11px;color:#b8860b;">** Client Affinité **</div>`:''}
+      ${vente.espece_recue>0 ? `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;">
+        <span>Espèce reçue</span><span>${fmt(vente.espece_recue)} F</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;">
+        <span>Monnaie</span><span>${fmt(vente.monnaie)} F</span>
+      </div>` : ''}
+      ${vente.affinite ? `<div style="text-align:center;margin-top:6px;color:#b8860b;font-size:11px;">🤝 Client Affinité</div>` : ''}
       <div style="text-align:center;margin-top:10px;font-size:11px;color:#888;">Merci et à bientôt !</div>
     </div>
-    <div style="height:12px;"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <button class="btn btn-ghost" onclick="imprimerBluetooth()" id="btn-bt">🖨️ Bluetooth</button>
-      <button class="btn btn-ghost" onclick="imprimerEcran()">📄 Écran/PDF</button>
-    </div>
-    <div style="height:8px;"></div>
+    <div style="height:10px;"></div>
     <button class="btn btn-primary" onclick="closeModal();showView('tournee')">✓ Terminer</button>
   `);
-  // Stocker vente courante pour impression
-  window._venteEnCours = vente;
-}
-
-async function imprimerBluetooth(){
-  const v = window._venteEnCours;
-  if(!v) return;
-  const btn = document.getElementById('btn-bt');
-  if(btn){ btn.textContent='Connexion…'; btn.disabled=true; }
-  try {
-    const bytes = buildTicketESCPOS(v);
-    const ok = await sendToPrinter(bytes);
-    if(ok) toast('✅ Ticket imprimé !');
-  } finally {
-    if(btn){ btn.textContent='🖨️ Bluetooth'; btn.disabled=false; }
-  }
-}
-
-function imprimerEcran(){
-  const preview = document.getElementById('ticket-preview');
-  if(!preview) return;
-  const win = window.open('','_blank','width=320,height=600');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-    <style>
-      @page{size:58mm auto;margin:3mm;}
-      body{font-family:monospace;font-size:11px;width:52mm;margin:0;padding:2mm;}
-      @media print{button{display:none;}}
-    </style></head><body>
-    ${preview.innerHTML}
-    <br><button onclick="window.print()">Imprimer</button>
-    </body></html>`);
-  win.document.close();
-  setTimeout(()=>win.print(), 400);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1157,20 +911,6 @@ function renderProfil(){
         </div>
       `).join('')}
       ${CACHE.clients.length>10?`<div style="font-size:12px;color:var(--dim);margin-top:6px;">+ ${CACHE.clients.length-10} autres</div>`:''}
-    </div>
-
-    <!-- Imprimante Bluetooth -->
-    <div class="card">
-      <div class="card-title">🖨️ Imprimante Bluetooth</div>
-      <div id="bt-status-card" style="font-size:13px;color:var(--dim);margin-bottom:10px;">Non connectée</div>
-      <div style="display:grid;gap:8px;">
-        <button class="btn btn-primary" onclick="connecterImprimante()">🔗 Connecter l'imprimante</button>
-        <button class="btn btn-ghost" onclick="testerImprimante()">🧪 Imprimer un test</button>
-      </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--dim);line-height:1.6;">
-        Compatible : Goojprt, Peripage, Munbyn, Xprinter (58mm ou 80mm)<br>
-        Activez le Bluetooth et appairez l'imprimante avant de connecter.
-      </div>
     </div>
 
     <!-- Export/Import -->
@@ -1335,29 +1075,6 @@ async function saveClient(id){
 // ═══════════════════════════════════════════════════
 // EXPORT / IMPORT
 // ═══════════════════════════════════════════════════
-async function connecterImprimante(){
-  const ok = await connectBluetooth();
-  const el = document.getElementById('bt-status-card');
-  if(el) el.textContent = ok ? '✅ Connectée : '+(btDevice?.name||'') : '❌ Non connectée';
-  if(ok) renderProfil();
-}
-
-async function testerImprimante(){
-  if(!btChar && !(await connectBluetooth())) return;
-  const testVente = {
-    num:9999, date: todayISO(), heure: new Date().toTimeString().slice(0,5),
-    client_nom:'TEST CLIENT', livreur_nom: CACHE.livreur?.nom||'',
-    lignes:[{nom:'Produit Test', qte:2, montant:10000}],
-    total_boisson:10000, montant_consig:0, total:10000,
-    espece_recue:10000, monnaie:0, affinite:false,
-    emb12_achetes:0, emb24_achetes:0,
-  };
-  window._venteEnCours = testVente;
-  const bytes = buildTicketESCPOS(testVente);
-  const ok = await sendToPrinter(bytes);
-  if(ok) toast('✅ Test imprimé !');
-}
-
 async function exporterDonnees(){
   const ventes = await dbGetAll('ventes');
   const data = {

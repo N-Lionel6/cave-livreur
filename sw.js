@@ -1,7 +1,9 @@
-const CACHE_NAME = 'cave-livreur-v1';
+const CACHE_NAME = 'cave-livreur-v2';
 const ASSETS = [
-  './livreur.html',
-  './manifest.json',
+  '/cave-livreur/livreur.html',
+  '/cave-livreur/manifest.json',
+  '/cave-livreur/icon-192.png',
+  '/cave-livreur/icon-512.png',
 ];
 
 self.addEventListener('install', e => {
@@ -22,6 +24,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => caches.match('./livreur.html')))
+    caches.match(e.request).then(cached => cached || fetch(e.request).catch(() =>
+      caches.match('/cave-livreur/livreur.html')
+    ))
   );
 });
