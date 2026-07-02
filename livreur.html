@@ -209,6 +209,17 @@ html,body{height:100%;background:var(--bg);color:var(--cream);font-family:var(--
 
 /* ── SCROLL TOUCH FIX ── */
 #content{-webkit-overflow-scrolling:touch;}
+
+/* ── IMPRESSION TICKET (mini imprimante thermique) ── */
+@media print{
+  body *{visibility:hidden;}
+  #print-ticket, #print-ticket *{visibility:visible;}
+  #print-ticket{
+    position:fixed;left:0;top:0;width:58mm;
+    border-radius:0;padding:2mm;font-size:10px;
+  }
+  @page{margin:0;size:58mm auto;}
+}
 </style>
 </head>
 <body>
@@ -261,7 +272,7 @@ const DB_VERSION = 1;
 const STORES = ['livreur','produits','clients','tournees','ventes','config'];
 let db = null;
 let CACHE = {livreur:null, produits:[], clients:[], tournees:[], ventes:[]};
-let CONFIG = {nom_depot:'Cave Manager', telephone:'', adresse:''};
+let CONFIG = {nom_depot:'Cave Manager', telephones:[], adresse:'', seuil_alerte:5, bloquer_rupture:true, montant_consignation:5000};
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function fmt(n){return Math.round(n||0).toLocaleString('fr-FR');}
@@ -293,7 +304,18 @@ async function reloadCache(){
   CACHE.clients = clients;
   CACHE.tournees = tournees;
   CACHE.ventes = ventes;
-  if(configs.length) Object.assign(CONFIG, configs[0]);
+  if(configs.length){
+    const c = configs[0];
+    // Migration: ancien champ "telephone" (texte unique) -> "telephones" (tableau)
+    if(!Array.isArray(c.telephones)){
+      c.telephones = c.telephone ? [c.telephone] : [];
+    }
+    Object.assign(CONFIG, c);
+    if(!Array.isArray(CONFIG.telephones)) CONFIG.telephones = [];
+    if(CONFIG.seuil_alerte===undefined || CONFIG.seuil_alerte===null) CONFIG.seuil_alerte = 5;
+    if(CONFIG.bloquer_rupture===undefined || CONFIG.bloquer_rupture===null) CONFIG.bloquer_rupture = true;
+    if(!CONFIG.montant_consignation) CONFIG.montant_consignation = 5000;
+  }
 }
 
 // ═══════════════════════════════════════════════════
@@ -346,7 +368,7 @@ function renderTournee(){
     stopsHTML = stops.map((s,i)=>{
       const done = CACHE.ventes.some(v=>v.stop_id===s.id && v.date===today);
       return `<div class="stop-item">
-        <div class="stop-num ${done?'stop-num done'}">${done?'✓':i+1}</div>
+        <div class="stop-num ${done?'done':''}">${done?'✓':i+1}</div>
         <div class="stop-info">
           <div class="stop-client">${s.client}</div>
           <div class="stop-detail">${s.adresse||''} ${s.produits||''}</div>
@@ -514,11 +536,14 @@ function renderVente(){
       <div class="prod-grid">
         ${produits.map(p=>{
           const inPanier = panier.find(it=>it.prod.id===p.id);
-          return `<div class="prod-card ${inPanier?'selected':''} ${p.quantite<=0?'rupture':''}" onclick="toggleProduit('${p.id}')">
+          const rupture = p.quantite<=0;
+          const alerte = !rupture && p.quantite<=CONFIG.seuil_alerte;
+          const bloque = rupture && CONFIG.bloquer_rupture;
+          return `<div class="prod-card ${inPanier?'selected':''} ${bloque?'rupture':''}" onclick="toggleProduit('${p.id}')">
             ${inPanier?`<div class="prod-qty-badge">×${inPanier.qte}</div>`:''}
             <div class="prod-name">${p.nom}</div>
             <div class="prod-prix">${fmt(p.prix_vente)} F</div>
-            <div class="prod-stock">Stock: ${p.quantite}</div>
+            <div class="prod-stock">Stock: ${p.quantite} ${rupture?'<span class="tag tag-red" style="margin-left:4px;">Rupture</span>':alerte?'<span class="tag tag-orange" style="margin-left:4px;">Faible</span>':''}</div>
           </div>`;
         }).join('')}
       </div>` : `<div class="empty"><p>Aucun produit configuré.<br>Allez dans Profil → Configurer.</p></div>`}
@@ -601,13 +626,23 @@ function toggleProduit(id){
   const prod = CACHE.produits.find(p=>p.id===id);
   if(!prod) return;
   const idx = panier.findIndex(it=>it.prod.id===id);
-  if(idx>=0) panier.splice(idx,1);
-  else panier.push({prod, qte:1});
+  if(idx>=0){ panier.splice(idx,1); renderVente(); return; }
+  if(prod.quantite<=0){
+    if(CONFIG.bloquer_rupture){ toast('🚫 Stock épuisé — vente bloquée'); return; }
+    if(!confirm(`⚠ "${prod.nom}" est en rupture de stock. Vendre quand même ?`)) return;
+  }
+  panier.push({prod, qte:1});
   renderVente();
 }
 
 function changeQte(i, delta){
-  panier[i].qte = Math.max(1, panier[i].qte + delta);
+  const item = panier[i];
+  const nouvelleQte = item.qte + delta;
+  if(delta>0 && CONFIG.bloquer_rupture && nouvelleQte>item.prod.quantite){
+    toast('🚫 Stock insuffisant');
+    return;
+  }
+  item.qte = Math.max(1, nouvelleQte);
   renderVente();
 }
 
@@ -620,7 +655,7 @@ function recalcConsig(){
   const ramenees24 = parseInt((document.getElementById('emb24-ramenees')||{value:0}).value)||0;
   const manq12 = affinite ? 0 : Math.max(0, emb12Achetes - ramenees12);
   const manq24 = affinite ? 0 : Math.max(0, emb24Achetes - ramenees24);
-  const consig = (manq12 + manq24) * 5000;
+  const consig = (manq12 + manq24) * CONFIG.montant_consignation;
   const total = panier.reduce((s,it)=>s+it.qte*it.prod.prix_vente,0);
   const facture = total + consig;
 
@@ -677,7 +712,7 @@ async function validerVente(){
   const ramenees24 = affinite ? 0 : parseInt((document.getElementById('emb24-ramenees')||{value:0}).value)||0;
   const manq12 = affinite ? 0 : Math.max(0, emb12Achetes - ramenees12);
   const manq24 = affinite ? 0 : Math.max(0, emb24Achetes - ramenees24);
-  const consig = (manq12 + manq24) * 5000;
+  const consig = (manq12 + manq24) * CONFIG.montant_consignation;
   const total = panier.reduce((s,it)=>s+it.qte*it.prod.prix_vente,0);
   const facture = total + consig;
   const espece = parseFloat((document.getElementById('v-espece')||{value:0}).value)||0;
@@ -744,12 +779,16 @@ function openTicketModal(vente){
     </div>`
   ).join('');
 
+  const telsHTML = CONFIG.telephones.length
+    ? `<div style="font-size:11px;color:#555;">${CONFIG.telephones.join(' • ')}</div>`
+    : '';
+
   openModal(`
     <div class="modal-title">🧾 Reçu de vente</div>
-    <div style="background:#fff;color:#111;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;">
+    <div id="print-ticket" style="background:#fff;color:#111;border-radius:10px;padding:14px;font-family:monospace;font-size:12px;">
       <div style="text-align:center;margin-bottom:10px;">
         <div style="font-size:15px;font-weight:700;">${CONFIG.nom_depot}</div>
-        <div style="font-size:11px;color:#555;">${CONFIG.telephone||''}</div>
+        ${telsHTML}
         <div style="font-size:11px;color:#555;margin-bottom:6px;">${CONFIG.adresse||''}</div>
         <div style="border-top:1px dashed #aaa;border-bottom:1px dashed #aaa;padding:4px 0;font-size:13px;font-weight:700;">
           VENTE N° ${String(vente.num).padStart(4,'0')} — ${vente.date} ${vente.heure}
@@ -772,8 +811,15 @@ function openTicketModal(vente){
       <div style="text-align:center;margin-top:10px;font-size:11px;color:#888;">Merci et à bientôt !</div>
     </div>
     <div style="height:10px;"></div>
-    <button class="btn btn-primary" onclick="closeModal();showView('tournee')">✓ Terminer</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <button class="btn btn-ghost" onclick="printTicket()">🖨️ Imprimer</button>
+      <button class="btn btn-primary" onclick="closeModal();showView('tournee')">✓ Terminer</button>
+    </div>
   `);
+}
+
+function printTicket(){
+  window.print();
 }
 
 // ═══════════════════════════════════════════════════
@@ -874,7 +920,7 @@ function renderProfil(){
     <div class="card">
       <div class="card-title">🏪 Dépôt</div>
       <div style="font-size:13px;color:var(--cream);margin-bottom:4px;">${CONFIG.nom_depot}</div>
-      <div style="font-size:12px;color:var(--dim);">${CONFIG.telephone||'—'}</div>
+      <div style="font-size:12px;color:var(--dim);">${CONFIG.telephones.length?CONFIG.telephones.join(' · '):'—'}</div>
       <div style="font-size:12px;color:var(--dim);margin-bottom:12px;">${CONFIG.adresse||'—'}</div>
       <button class="btn btn-ghost" onclick="openDepotModal()">✏️ Configurer le dépôt</button>
     </div>
@@ -959,11 +1005,35 @@ async function saveProfil(){
 }
 
 function openDepotModal(){
+  const telHTML = (CONFIG.telephones.length?CONFIG.telephones:['']).map((t,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input class="dep-tel" value="${t}" placeholder="Ex: 70 00 00 0${i+1}" style="flex:1;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:10px 12px;font-size:14px;">
+      <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0;">✕</button>
+    </div>`).join('');
+
   openModal(`
     <div class="modal-title">🏪 Informations dépôt</div>
     <div class="field"><label>Nom du dépôt</label><input id="d-nom" value="${CONFIG.nom_depot||''}"></div>
-    <div class="field"><label>Téléphone</label><input id="d-tel" value="${CONFIG.telephone||''}"></div>
+    <div class="field">
+      <label>Numéros de téléphone</label>
+      <div id="dep-tels">${telHTML}</div>
+      <button class="btn btn-ghost btn-sm" onclick="addTelField()">+ Ajouter un numéro</button>
+    </div>
     <div class="field"><label>Adresse</label><input id="d-adr" value="${CONFIG.adresse||''}"></div>
+
+    <div class="card-title" style="margin-top:16px;">📦 Blocage de stock</div>
+    <div class="field">
+      <label>Seuil d'alerte (stock faible)</label>
+      <input type="number" id="d-seuil" value="${CONFIG.seuil_alerte}" min="0">
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;">
+      <input type="checkbox" id="d-bloquer" ${CONFIG.bloquer_rupture?'checked':''} style="width:16px;height:16px;">
+      <span style="font-size:13px;">🚫 Bloquer la vente si stock à 0 (rupture)</span>
+    </label>
+
+    <div class="card-title">🔄 Consignation</div>
+    <div class="field"><label>Montant par casse manquante (F CFA)</label><input type="number" id="d-consig" value="${CONFIG.montant_consignation}" min="0"></div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
       <button class="btn btn-ghost" onclick="closeModal()">Annuler</button>
       <button class="btn btn-primary" onclick="saveDepot()">Enregistrer</button>
@@ -971,10 +1041,22 @@ function openDepotModal(){
   `);
 }
 
+function addTelField(){
+  const wrap = document.getElementById('dep-tels');
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
+  div.innerHTML = `<input class="dep-tel" placeholder="Ex: 70 00 00 00" style="flex:1;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;padding:10px 12px;font-size:14px;">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()" style="flex-shrink:0;">✕</button>`;
+  wrap.appendChild(div);
+}
+
 async function saveDepot(){
   CONFIG.nom_depot = document.getElementById('d-nom').value.trim()||'Cave Manager';
-  CONFIG.telephone = document.getElementById('d-tel').value.trim();
+  CONFIG.telephones = Array.from(document.querySelectorAll('.dep-tel')).map(i=>i.value.trim()).filter(Boolean);
   CONFIG.adresse   = document.getElementById('d-adr').value.trim();
+  CONFIG.seuil_alerte = parseInt(document.getElementById('d-seuil').value)||0;
+  CONFIG.bloquer_rupture = document.getElementById('d-bloquer').checked;
+  CONFIG.montant_consignation = parseFloat(document.getElementById('d-consig').value)||0;
   await dbPut('config', {...CONFIG, id:'depot'});
   closeModal();
   renderProfil();
